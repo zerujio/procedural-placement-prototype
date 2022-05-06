@@ -1,4 +1,4 @@
-#include "glfw_window.hpp"
+#include "window.hpp"
 
 #include <stdexcept>
 
@@ -17,7 +17,7 @@ namespace GLFW {
       throw std::runtime_error(error_msg);
     }
   }
-  
+
   Window::Window(Window&& other)
   : m_window_ptr(other.m_window_ptr)
   {

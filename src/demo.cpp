@@ -1,8 +1,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "glfw_window.hpp"
-#include "glfw_init.hpp"
+#include "glfw_utils/window.hpp"
+#include "glfw_utils/init.hpp"
 
 #include <iostream>
 
@@ -10,7 +10,6 @@ int main() {
 
   GLFW::InitSentry _glfw_init_sentry;
 
-  glfwWindowHint();
   GLFW::Window window {1024, 768, "Hello world!"};
 
   glfwMakeContextCurrent(window.ptr());

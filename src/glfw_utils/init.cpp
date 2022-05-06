@@ -1,4 +1,4 @@
-#include "glfw_init.hpp"
+#include "init.hpp"
 
 #include <GLFW/glfw3.h>
 

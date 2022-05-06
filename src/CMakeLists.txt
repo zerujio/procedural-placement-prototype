@@ -1,3 +1,5 @@
+add_library(glfw_utils OBJECT glfw_utils/init.cpp glfw_utils/window.cpp)
+target_link_libraries(glfw_utils PUBLIC glfw)
+
 add_executable(demo demo.cpp)
-target_sources(demo PRIVATE glfw_window.cpp glfw_init.cpp)
-target_link_libraries(demo PRIVATE glfw glad)
+target_link_libraries(demo glfw_utils glad)
