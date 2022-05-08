@@ -7,6 +7,8 @@
 #include "gl_utils/gl.hpp"
 
 #include <glm/vec3.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -59,10 +61,14 @@ int main() {
     }
 
     glm::vec3 vertices[] {
-        {.5, .5, .0},
-        {-.5, .5, .0},
-        {.5, -.5, .0},
-        {-.5, -.5, .0}
+            { .5, .5, .5},  // 0 : + + +
+            {-.5, .5, .5},  // 1 : - + +
+            {-.5,-.5, .5},  // 2 : - - +
+            {-.5,-.5,-.5},  // 3 : - - -
+            { .5,-.5,-.5},  // 4 : + - -
+            { .5, .5,-.5},  // 5 : + + -
+            {-.5, .5,-.5},  // 6 : - + -
+            { .5,-.5, .5}   // 7 : + - +
     };
 
     GL::ObjectManager<GL::Buffer> vbo_manager {};
@@ -79,8 +85,12 @@ int main() {
 
 
     unsigned int indices[] {
-        0, 1, 3,
-        0, 3, 2
+        5, 3, 4,    5, 6, 3,
+        2, 1, 0,    0, 7, 2,
+        0, 5, 4,    0, 4, 7,
+        0, 6, 5,    0, 1, 6,
+        6, 2, 3,    6, 1, 2,
+        2, 7, 3,    4, 3, 7,
     };
 
     GL::ObjectManager<GL::Buffer> ebo_manager {};
@@ -88,12 +98,25 @@ int main() {
     ebo.bind(GL::Buffer::Target::ElementArray);
     GL::Buffer::setData(GL::Buffer::Target::ElementArray, sizeof(indices), indices, GL::Buffer::Usage::StaticDraw);
 
+    glm::mat4 view_mtx = glm::lookAt(glm::vec3(3.0f), glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+    glm::mat4 proj_mtx = glm::perspectiveFov(70.0f, 1024.0f, 768.0f, 0.01f, 100.0f);
+
     glClearColor(0.2f, 0.1f, 0.2f, 1.0f);
 
     shader_program.handle().useProgram();
+
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(view_mtx));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(proj_mtx));
+
     while (!glfwWindowShouldClose(window.ptr())) {
+        constexpr float angular_speed = 1.0f;
+        float angle = angular_speed * glfwGetTime();
+        glm::mat4 model_mtx = glm::rotate(glm::mat4(1.0f), angle, {0.0f, 1.0f, 0.0f});
+        model_mtx = glm::rotate(model_mtx, angle, {0.0f, 0.0f, 1.0f});
+        glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(model_mtx));
+
         glClear(GL_COLOR_BUFFER_BIT);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
         glfwSwapBuffers(window.ptr());
         glfwPollEvents();
     }

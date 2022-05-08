@@ -26,7 +26,7 @@ void ShaderProgram::detachShader(Shader shader) const {
 }
 
 void ShaderProgram::linkProgram() const {
-    std::cout << "Linking program " << m_id << " ... ";
+    std::cout << "Linking program [id=" << m_id << "] ... ";
 
     glLinkProgram(m_id);
 

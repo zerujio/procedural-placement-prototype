@@ -32,7 +32,7 @@ void Shader::setSource(const std::vector<std::string> &src_vector) const {
 }
 
 void Shader::compileShader() const {
-    std::cout << "Compiling shader " << m_id << " ... ";
+    std::cout << "Compiling shader [id=" << m_id << "] ... ";
     glCompileShader(m_id);
 
     GLint success, log_length;
