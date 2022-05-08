@@ -3,24 +3,37 @@
 
 namespace GL {
 
-  template<class Object>
-  class ObjectManager {
+template<class Object>
+class ObjectManager {
 
-  public:
+public:
     template<class... Args>
     ObjectManager(Args... args) {
-      Object::create(args);
+        m_handle = Object::create(args...);
     }
 
     ~ObjectManager() {
-      O
+        Object::destroy(m_handle);
     }
 
-    Object
+    ObjectManager(ObjectManager &&other) noexcept
+            : m_handle(other) {
+        other.m_handle = Object();
+    }
 
-  private:
-    Object m_id;
-  };
+    ObjectManager &operator=(ObjectManager &&other) noexcept {
+        Object::destroy(m_handle);
+        m_handle = other.m_handle;
+        other.m_handle = Object();
+    }
+
+    Object handle() const {
+        return m_handle;
+    }
+
+private:
+    Object m_handle;
+};
 
 } // namespace GL
 

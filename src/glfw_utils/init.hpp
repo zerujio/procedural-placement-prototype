@@ -3,13 +3,15 @@
 
 namespace GLFW {
 
-  struct InitSentry {
+struct InitSentry {
     InitSentry();
+
     ~InitSentry();
 
-    InitSentry(const InitSentry&) = delete;
-    InitSentry& operator=(const InitSentry&) = delete;
-  };
+    InitSentry(const InitSentry &) = delete;
+
+    InitSentry &operator=(const InitSentry &) = delete;
+};
 
 } // namespace GLFW
 

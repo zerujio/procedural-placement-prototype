@@ -1,26 +1,41 @@
 #include "shader.hpp"
 
-#include <ifstream>
-#include <sstream>
+#include <vector>
 #include <stdexcept>
 
-Shader::Shader(const std::string& filename, ShaderType type)
-: m_id (glCreateShader(static_cast<GLint>(type)))
-{
-  if (!m_id) {
-    throw std::runtime_error("Shader creation failed");
-  }
+namespace GL {
 
-  std::ifstream file {filename};
-  std::string str = (std::stringstream() << file.rdbuf()).str();
-  const char* c_str = str.c_str();
-
-  glShaderSource(m_id, 1, &c_str, nullptr);
-  glCompileShader(m_id);
+Shader Shader::create(ShaderType shader_type) {
+    return {glCreateShader(static_cast<GLenum>(shader_type))};
 }
 
-Shader::Shader(Shader &&other) :
-m_id(other.m_id)
-{
-  other.m_id = 0;
+void Shader::destroy(Shader shader) {
+    glDeleteShader(shader.m_id);
 }
+
+void Shader::setSource(const std::string &src) const {
+    auto c_str = src.c_str();
+    glShaderSource(m_id, 1, &c_str, nullptr);
+}
+
+void Shader::setSource(const std::vector<std::string> &src_vector) const {
+    if (src_vector.empty())
+        throw std::logic_error("Shader::setSource given empty source vector");
+
+    const char *sources[src_vector.size()];
+    for (int i = 0; i < src_vector.size(); ++i) {
+        sources[i] = src_vector[i].c_str();
+    }
+
+    glShaderSource(m_id, src_vector.size(), sources, nullptr);
+}
+
+void Shader::compileShader() const {
+    glCompileShader(m_id);
+}
+
+bool Shader::valid() const {
+    return glIsShader(m_id);
+}
+
+} // namespace GL

@@ -6,16 +6,16 @@
 
 namespace GLFW {
 
-  InitSentry::InitSentry() {
+InitSentry::InitSentry() {
     if (!glfwInit()) {
-      const char* errmsg;
-      glfwGetError(&errmsg);
-      throw std::runtime_error(errmsg);
+        const char *errmsg;
+        glfwGetError(&errmsg);
+        throw std::runtime_error(errmsg);
     }
-  }
+}
 
-  InitSentry::~InitSentry() {
+InitSentry::~InitSentry() {
     glfwTerminate();
-  }
+}
 
 } // namespace GLFW
