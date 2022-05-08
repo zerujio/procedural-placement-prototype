@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <stdexcept>
+#include <iostream>
 
 namespace GL {
 
@@ -31,7 +32,19 @@ void Shader::setSource(const std::vector<std::string> &src_vector) const {
 }
 
 void Shader::compileShader() const {
+    std::cout << "Compiling shader " << m_id << " ... ";
     glCompileShader(m_id);
+
+    GLint success, log_length;
+    glGetShaderiv(m_id, GL_COMPILE_STATUS, &success);
+    glGetShaderiv(m_id, GL_INFO_LOG_LENGTH, &log_length);
+
+    std::cout << ((success) ? "SUCCESS" : "ERROR") << std::endl;
+    if (log_length > 0) {
+        char buf[log_length];
+        glGetShaderInfoLog(m_id, log_length, nullptr, buf);
+        std::cout << buf << std::endl;
+    }
 }
 
 bool Shader::valid() const {

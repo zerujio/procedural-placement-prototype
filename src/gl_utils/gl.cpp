@@ -89,7 +89,7 @@ void debugCallback(GLenum source,
             break;
     }
 
-    std::cout << "[OpenGL DEBUG MESSAGE]\n"
+    std::cout << "\n[OpenGL DEBUG MESSAGE]\n"
               << "Source  :" << source_string << '\n'
               << "Type    :" << type_string << '\n'
               << "Severity:" << severity_string << '\n'

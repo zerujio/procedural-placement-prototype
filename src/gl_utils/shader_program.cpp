@@ -1,5 +1,7 @@
 #include "shader_program.hpp"
 
+#include <iostream>
+
 namespace GL {
 
 
@@ -24,7 +26,20 @@ void ShaderProgram::detachShader(Shader shader) const {
 }
 
 void ShaderProgram::linkProgram() const {
+    std::cout << "Linking program " << m_id << " ... ";
+
     glLinkProgram(m_id);
+
+    GLint success, log_length;
+    glGetProgramiv(m_id, GL_LINK_STATUS, &success);
+    glGetProgramiv(m_id, GL_INFO_LOG_LENGTH, &log_length);
+
+    std::cout << (success ? "SUCCESS" : "ERROR") << std::endl;
+    if (log_length) {
+        char buf[log_length];
+        glGetProgramInfoLog(m_id, log_length, nullptr, buf);
+        std::cout << buf << std::endl;
+    }
 }
 
 void ShaderProgram::useProgram() const {

@@ -6,6 +6,8 @@
 #include "object_manager.hpp"
 #include "shader.hpp"
 #include "shader_program.hpp"
+#include "buffer.hpp"
+#include "vertex_array.hpp"
 
 namespace GL {
 
