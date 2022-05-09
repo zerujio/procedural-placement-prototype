@@ -32,7 +32,7 @@ public:
 
     void bind(Target target) const;
 
-    static void setData(Target target, GLsizeiptr size, void *data, Usage usage);
+    static void setData(Target target, GLsizeiptr size, const void *data, Usage usage);
 
     template<class Container>
     static void setData(Target target, Container data, Usage usage) {

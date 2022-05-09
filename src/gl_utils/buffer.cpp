@@ -21,7 +21,7 @@ void Buffer::bind(Buffer::Target target) const {
     glBindBuffer(static_cast<GLenum>(target), m_id);
 }
 
-void Buffer::setData(Buffer::Target target, GLsizeiptr size, void *data, Buffer::Usage usage) {
+void Buffer::setData(Buffer::Target target, GLsizeiptr size, const void *data, Buffer::Usage usage) {
     glBufferData(static_cast<GLenum>(target), size, data, static_cast<GLenum>(usage));
 }
 

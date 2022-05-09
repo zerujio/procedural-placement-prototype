@@ -60,15 +60,45 @@ int main() {
         shader_program.handle().linkProgram();
     }
 
-    glm::vec3 vertices[] {
-            { .5, .5, .5},  // 0 : + + +
-            {-.5, .5, .5},  // 1 : - + +
-            {-.5,-.5, .5},  // 2 : - - +
-            {-.5,-.5,-.5},  // 3 : - - -
-            { .5,-.5,-.5},  // 4 : + - -
-            { .5, .5,-.5},  // 5 : + + -
-            {-.5, .5,-.5},  // 6 : - + -
-            { .5,-.5, .5}   // 7 : + - +
+
+    GL::ObjectManager<GL::VertexArray> vao {};
+    vao.handle().bind();
+
+    struct Vertex {
+        glm::vec3 position;
+        glm::vec3 normal;
+    };
+
+    const Vertex vertices[] {
+            {{ .5, .5,-.5}, { .0, .0,-1.}}, // 0
+            {{ .5,-.5,-.5}, { .0, .0,-1.}},
+            {{-.5, .5,-.5}, { .0, .0,-1.}},
+            {{-.5,-.5,-.5}, { .0, .0,-1.}},
+
+            {{ .5, .5, .5}, { .0, .0, 1.}}, // 4
+            {{ .5,-.5, .5}, { .0, .0, 1.}},
+            {{-.5, .5, .5}, { .0, .0, 1.}},
+            {{-.5,-.5, .5}, { .0, .0, 1.}},
+
+            {{ .5, .5, .5}, { 0., 1., 0.}}, // 8
+            {{ .5, .5,-.5}, { 0., 1., 0.}},
+            {{-.5, .5, .5}, { 0., 1., 0.}},
+            {{-.5, .5,-.5}, { 0., 1., 0.}},
+
+            {{ .5,-.5, .5}, { 0.,-1., 0.}}, // 12
+            {{ .5,-.5,-.5}, { 0.,-1., 0.}},
+            {{-.5,-.5, .5}, { 0.,-1., 0.}},
+            {{-.5,-.5,-.5}, { 0.,-1., 0.}},
+
+            {{ .5, .5, .5}, { 1., 0., 0.}}, // 16
+            {{ .5, .5,-.5}, { 1., 0., 0.}},
+            {{ .5,-.5, .5}, { 1., 0., 0.}},
+            {{ .5,-.5,-.5}, { 1., 0., 0.}},
+
+            {{-.5, .5, .5}, {-1., 0., 0.}}, // 20
+            {{-.5, .5,-.5}, {-1., 0., 0.}},
+            {{-.5,-.5, .5}, {-1., 0., 0.}},
+            {{-.5,-.5,-.5}, {-1., 0., 0.}},
     };
 
     GL::ObjectManager<GL::Buffer> vbo_manager {};
@@ -76,21 +106,13 @@ int main() {
     vbo.bind(GL::Buffer::Target::Array);
     GL::Buffer::setData(GL::Buffer::Target::Array, sizeof(vertices), vertices, GL::Buffer::Usage::StaticDraw);
 
-    GL::ObjectManager<GL::VertexArray> vao {};
-    vao.handle().bind();
-
-    constexpr unsigned int a_position_index = 0;
-    glVertexAttribPointer(a_position_index, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), nullptr);
-    glEnableVertexAttribArray(a_position_index);
-
-
-    unsigned int indices[] {
-        5, 3, 4,    5, 6, 3,
-        2, 1, 0,    0, 7, 2,
-        0, 5, 4,    0, 4, 7,
-        0, 6, 5,    0, 1, 6,
-        6, 2, 3,    6, 1, 2,
-        2, 7, 3,    4, 3, 7,
+    const unsigned int indices[] {
+        1, 3, 0,    0, 3, 2,
+        6, 5, 4,    5, 6, 7,
+        9, 10, 8,   10, 9, 11,
+        14, 13, 12, 13, 14, 15,
+        19, 16, 18, 16, 19, 17,
+        22, 21, 23, 21, 22, 20
     };
 
     GL::ObjectManager<GL::Buffer> ebo_manager {};
@@ -98,15 +120,29 @@ int main() {
     ebo.bind(GL::Buffer::Target::ElementArray);
     GL::Buffer::setData(GL::Buffer::Target::ElementArray, sizeof(indices), indices, GL::Buffer::Usage::StaticDraw);
 
-    glm::mat4 view_mtx = glm::lookAt(glm::vec3(3.0f), glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+    constexpr unsigned int a_position_location {0};
+    glVertexAttribPointer(a_position_location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                          reinterpret_cast<void*>(offsetof(Vertex, position)));
+    glEnableVertexAttribArray(a_position_location);
+
+    constexpr unsigned int a_normal_location {1};
+    glVertexAttribPointer(a_normal_location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                          reinterpret_cast<void*>(offsetof(Vertex, normal)));
+    glEnableVertexAttribArray(a_normal_location);
+
+    glm::vec3 camera_position {3.0f};
+    glm::mat4 view_mtx = glm::lookAt(camera_position, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
     glm::mat4 proj_mtx = glm::perspectiveFov(70.0f, 1024.0f, 768.0f, 0.01f, 100.0f);
 
-    glClearColor(0.2f, 0.1f, 0.2f, 1.0f);
+    glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
 
     shader_program.handle().useProgram();
 
     glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(view_mtx));
     glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(proj_mtx));
+    glUniform3fv(7, 1, glm::value_ptr(camera_position));
 
     while (!glfwWindowShouldClose(window.ptr())) {
         constexpr float angular_speed = 1.0f;
@@ -115,7 +151,7 @@ int main() {
         model_mtx = glm::rotate(model_mtx, angle, {0.0f, 0.0f, 1.0f});
         glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(model_mtx));
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
         glfwSwapBuffers(window.ptr());
         glfwPollEvents();
