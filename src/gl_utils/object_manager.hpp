@@ -35,6 +35,14 @@ public:
         return m_handle;
     }
 
+    const Object* operator->() const {
+        return &m_handle;
+    }
+
+    Object* operator->() {
+        return &m_handle;
+    }
+
 private:
     Object m_handle;
 };
