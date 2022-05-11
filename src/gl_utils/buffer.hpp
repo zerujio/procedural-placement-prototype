@@ -13,7 +13,8 @@ public:
 
     enum class Target {
         Array = GL_ARRAY_BUFFER,
-        ElementArray = GL_ELEMENT_ARRAY_BUFFER
+        ElementArray = GL_ELEMENT_ARRAY_BUFFER,
+        ShaderStorage = GL_SHADER_STORAGE_BUFFER
     };
 
     enum class Usage {
@@ -38,6 +39,8 @@ public:
     static void setData(Target target, Container data, Usage usage) {
         setData(target, data.size() * sizeof(Container::value_type), data.data(), usage);
     }
+
+    [[nodiscard]] GLuint id() const;
 
 private:
 

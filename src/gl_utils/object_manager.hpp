@@ -8,16 +8,20 @@ class ObjectManager {
 
 public:
     template<class... Args>
-    ObjectManager(Args... args) {
-        m_handle = Object::create(args...);
-    }
+    ObjectManager(Args... args)
+    : m_handle(Object::create(args...))
+    {}
+
+    explicit ObjectManager(Object object)
+    : m_handle(object)
+    {}
 
     ~ObjectManager() {
         Object::destroy(m_handle);
     }
 
     ObjectManager(ObjectManager &&other) noexcept
-            : m_handle(other) {
+    : m_handle(other) {
         other.m_handle = Object();
     }
 

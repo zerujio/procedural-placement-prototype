@@ -25,6 +25,8 @@ public:
 
     void useProgram() const;
 
+    [[nodiscard]] GLuint id() const;
+
 protected:
 
     ShaderProgram(GLuint id) : m_id(id) {}

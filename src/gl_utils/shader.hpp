@@ -40,7 +40,9 @@ public:
     void compileShader() const;
 
     // check validity of shader id
-    bool valid() const;
+    [[nodiscard]] bool valid() const;
+
+    GLuint id() const;
 
 protected:
 

@@ -25,4 +25,8 @@ void Buffer::setData(Buffer::Target target, GLsizeiptr size, const void *data, B
     glBufferData(static_cast<GLenum>(target), size, data, static_cast<GLenum>(usage));
 }
 
+GLuint Buffer::id() const {
+    return m_id;
+}
+
 } // GL

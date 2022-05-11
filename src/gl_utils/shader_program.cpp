@@ -46,5 +46,8 @@ void ShaderProgram::useProgram() const {
     glUseProgram(m_id);
 }
 
+GLuint ShaderProgram::id() const {
+    return m_id;
+}
 
 } // GL

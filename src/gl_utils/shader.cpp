@@ -51,4 +51,8 @@ bool Shader::valid() const {
     return glIsShader(m_id);
 }
 
+GLuint Shader::id() const {
+    return m_id;
+}
+
 } // namespace GL

@@ -8,6 +8,7 @@
 #include "shader_program.hpp"
 #include "buffer.hpp"
 #include "vertex_array.hpp"
+#include "texture.hpp"
 
 namespace GL {
 
