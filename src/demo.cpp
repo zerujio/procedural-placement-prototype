@@ -66,53 +66,6 @@ TextureData loadTexture(const std::string &path) {
     return {texture, image.dimensions()};
 }
 
-struct Vertex {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec2 texCoord;
-};
-
-constexpr Vertex cube_vertices[] {
-        {{ .5, .5,-.5}, { .0, .0,-1.}, {1., 0.}}, // 0
-        {{ .5,-.5,-.5}, { .0, .0,-1.}, {1., 1.}},
-        {{-.5, .5,-.5}, { .0, .0,-1.}, {0., 0.}},
-        {{-.5,-.5,-.5}, { .0, .0,-1.}, {0., 1.}},
-
-        {{ .5, .5, .5}, { .0, .0, 1.}, {1., 0.}}, // 4
-        {{ .5,-.5, .5}, { .0, .0, 1.}, {1., 1.}},
-        {{-.5, .5, .5}, { .0, .0, 1.}, {0., 0.}},
-        {{-.5,-.5, .5}, { .0, .0, 1.}, {0., 1.}},
-
-        {{ .5, .5, .5}, { 0., 1., 0.}, {1., 0.}}, // 8
-        {{ .5, .5,-.5}, { 0., 1., 0.}, {1., 1.}},
-        {{-.5, .5, .5}, { 0., 1., 0.}, {0., 0.}},
-        {{-.5, .5,-.5}, { 0., 1., 0.}, {0., 1.}},
-
-        {{ .5,-.5, .5}, { 0.,-1., 0.}, {1., 0.}}, // 12
-        {{ .5,-.5,-.5}, { 0.,-1., 0.}, {1., 1.}},
-        {{-.5,-.5, .5}, { 0.,-1., 0.}, {0., 0.}},
-        {{-.5,-.5,-.5}, { 0.,-1., 0.}, {0., 1.}},
-
-        {{ .5, .5, .5}, { 1., 0., 0.}, {1., 0.}}, // 16
-        {{ .5, .5,-.5}, { 1., 0., 0.}, {1., 1.}},
-        {{ .5,-.5, .5}, { 1., 0., 0.}, {0., 0.}},
-        {{ .5,-.5,-.5}, { 1., 0., 0.}, {0., 1.}},
-
-        {{-.5, .5, .5}, {-1., 0., 0.}, {1., 0.}}, // 20
-        {{-.5, .5,-.5}, {-1., 0., 0.}, {1., 1.}},
-        {{-.5,-.5, .5}, {-1., 0., 0.}, {0., 0.}},
-        {{-.5,-.5,-.5}, {-1., 0., 0.}, {0., 1.}},
-};
-
-constexpr unsigned int cube_indices[] {
-        1, 3, 0,    0, 3, 2,
-        6, 5, 4,    5, 6, 7,
-        9, 10, 8,   10, 9, 11,
-        14, 13, 12, 13, 14, 15,
-        19, 16, 18, 16, 19, 17,
-        22, 21, 23, 21, 22, 20
-};
-
 int main() {
 
     glfwSetErrorCallback(glfwCallback);
@@ -134,9 +87,8 @@ int main() {
 
     GL::enableDebugMessageCallback();
 
-    // 1. Load shaders
-
-    // 1.1 Compute shader for point cloud generation
+    // 1 Load shaders
+    // 1.1 Compute shader for terrain generation
     GL::ObjectManager<GL::ShaderProgram> compute_program;
     {
         GL::ObjectManager<GL::Shader> compute_shader{loadShader("shaders/heightmap.comp", GL::ShaderType::Compute)};
@@ -165,127 +117,163 @@ int main() {
         lighting_program->linkProgram();
     }
 
-    // 2. Allocate/initialize GPU memory
-    struct GPUMemoryRange {
-        GLsizei size;
-        GLsizei offset;
-    };
-
-    // 2.1 Vertex buffer
-    GL::ObjectManager<GL::Buffer> vertex_buffer;
-    vertex_buffer->bind(GL::Buffer::Target::Array);
-
-    // 2.1.1 Calculate size of point cloud
-    const glm::ivec3 num_work_groups{8, 8, 1};
+    // 2 Allocate/initialize GPU memory
+    // 2.1 Calculate index/vertex count
+    const glm::ivec3 num_work_groups {8, 8, 1};
     glm::ivec3 work_group_size;
     glGetProgramiv(compute_program->id(), GL_COMPUTE_WORK_GROUP_SIZE, glm::value_ptr(work_group_size));
-    const glm::ivec3 point_cloud_dim{num_work_groups * work_group_size};
-    const int point_count = point_cloud_dim.x * point_cloud_dim.y * point_cloud_dim.z;
+    const glm::ivec3 num_compute_threads = num_work_groups * work_group_size;
 
-    // 2.1.2 Allocate vertex buffer
-    // vec3 is padded to sizeof(vec4) when in a SSBO
-    const GPUMemoryRange cube_mem{sizeof(cube_vertices), 0};
-    const GPUMemoryRange point_mem{static_cast<int>(sizeof(glm::vec4) * point_count), cube_mem.size};
+    GLsizei vertex_count = num_compute_threads.x * num_compute_threads.y;
+    GLsizei index_count = (num_compute_threads.x - 1) * (num_compute_threads.y - 1) * 6;
+
+    // 2.2 Create buffers
+    GL::ObjectManager<GL::Buffer> vertex_buffer;
+    vertex_buffer->bind(GL::Buffer::Target::Array);
     GL::Buffer::setData(GL::Buffer::Target::Array,
-                        point_mem.size + cube_mem.size,
+                        vertex_count * (2 * sizeof(glm::vec4) + sizeof(glm::vec2)),
                         nullptr,
                         GL::Buffer::Usage::StaticDraw);
-    glBufferSubData(GL_ARRAY_BUFFER, cube_mem.offset, cube_mem.size, cube_vertices);
 
-    // 2.2 Index buffer
     GL::ObjectManager<GL::Buffer> index_buffer;
     index_buffer->bind(GL::Buffer::Target::ElementArray);
     GL::Buffer::setData(GL::Buffer::Target::ElementArray,
-                        sizeof(cube_vertices),
-                        cube_vertices,
+                        index_count * sizeof(unsigned int),
+                        nullptr,
                         GL::Buffer::Usage::StaticDraw);
 
+    // 3 Generate Terrain
+    struct GPUMemoryRange {
+        GLintptr offset;
+        GLsizeiptr size;
+    };
 
-    // 3. Generate point cloud
+    GPUMemoryRange index_mem {0, index_count * static_cast<GLsizei>(sizeof(unsigned int))};
+
+    // vec3's are padded to sizeof(vec4) in SSB0's
+    GPUMemoryRange position_mem {0, vertex_count * static_cast<GLsizei>(sizeof(glm::vec4))};
+    GPUMemoryRange normal_mem {position_mem.size, vertex_count * static_cast<GLsizei>(sizeof(glm::vec4))};
+    GPUMemoryRange tex_coord_mem {normal_mem.offset + normal_mem.size, vertex_count * static_cast<GLsizei>(sizeof(glm::vec2))};
+
+    // 3.1 Bind SSBO
     compute_program->useProgram();
-    vertex_buffer->bind(GL::Buffer::Target::ShaderStorage);
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, /*biding=*/0, vertex_buffer->id(), point_mem.offset, point_mem.size);
 
+    vertex_buffer->bind(GL::Buffer::Target::ShaderStorage);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, /*biding=*/0, vertex_buffer->id(),
+                      position_mem.offset, position_mem.size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, vertex_buffer->id(), normal_mem.offset, normal_mem.size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, vertex_buffer->id(), tex_coord_mem.offset, tex_coord_mem.size);
+
+    index_buffer->bind(GL::Buffer::Target::ShaderStorage);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 3, index_buffer->id(), index_mem.offset, index_mem.size);
+
+    // 3.2 Bind heightmap texture
     auto heightmap_tex_data = loadTexture("heightmap.png");
     GL::ObjectManager<GL::Texture> heightmap_texture {heightmap_tex_data.gl_texture};
     GL::Texture::setActive(0);
     heightmap_texture->bind(GL::Texture::Target::Tex2D);
 
+    // 3.3 Execute compute shader
     glDispatchCompute(num_work_groups.x, num_work_groups.y, num_work_groups.z);
 
     // 4. Set up VAOs for rendering
-    vertex_buffer->bind(GL::Buffer::Target::Array);
-
-    // 4.1 Point cloud
-    GL::ObjectManager<GL::VertexArray> point_cloud_vao;
-    point_cloud_vao->bind();
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*) point_mem.offset);
-    glEnableVertexAttribArray(0);
-
-    // 4.2 Cube mesh
-    GL::ObjectManager<GL::VertexArray> cube_vao;
-    cube_vao->bind();
-    index_buffer->bind(GL::Buffer::Target::ElementArray);
 
     constexpr unsigned int a_position_location {0};
-    glVertexAttribPointer(a_position_location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          reinterpret_cast<void*>(offsetof(Vertex, position)));
+    constexpr unsigned int a_normal_location {1};
+    constexpr unsigned int a_texCoord_location {2};
+
+    // 4.1 Terrain
+    GL::ObjectManager<GL::VertexArray> terrain_vao;
+    terrain_vao->bind();
+    vertex_buffer->bind(GL::Buffer::Target::Array);
+    index_buffer->bind(GL::Buffer::Target::ElementArray);
+
+    glVertexAttribPointer(a_position_location, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec4),
+                          reinterpret_cast<void*>(position_mem.offset));
     glEnableVertexAttribArray(a_position_location);
 
-    constexpr unsigned int a_normal_location {1};
-    glVertexAttribPointer(a_normal_location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          reinterpret_cast<void*>(offsetof(Vertex, normal)));
+    glVertexAttribPointer(a_normal_location, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec4),
+                          reinterpret_cast<void*>(normal_mem.offset));
     glEnableVertexAttribArray(a_normal_location);
 
-    constexpr unsigned int a_texCoord_location {2};
-    glVertexAttribPointer(a_texCoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          reinterpret_cast<void*>(offsetof(Vertex, texCoord)));
+    glVertexAttribPointer(a_texCoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2),
+                          reinterpret_cast<void*>(tex_coord_mem.offset));
     glEnableVertexAttribArray(a_texCoord_location);
 
-    // 5. Set static uniforms for rendering
-    auto point_cloud_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
-    point_cloud_transform = glm::translate(point_cloud_transform, {-.5, 0, -.5});
+    // 5. Calculate transforms, set uniforms
 
+    constexpr int u_model_loc = 0;
+    constexpr int u_view_loc = 1;
+    constexpr int u_proj_loc = 2;
+    constexpr int u_view_pos_loc = 7;
+
+    auto terrain_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
+    terrain_transform = glm::translate(terrain_transform, {-.5, 0, -.5});
+
+    float camera_angle = 3.14f;
     glm::vec3 camera_position {0.0f, 2.5f, -5.0f};
     glm::mat4 view_mtx = glm::lookAt(camera_position, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
     glm::mat4 proj_mtx = glm::perspectiveFov(70.0f, 1024.0f, 768.0f, 0.01f, 100.0f);
 
     lighting_program->useProgram();
-    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(view_mtx));
-    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(proj_mtx));
-    glUniform3fv(7, 1, glm::value_ptr(camera_position));
+    glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
+    glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
+    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+    glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(camera_position));
 
     point_program->useProgram();
-    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(view_mtx));
-    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(proj_mtx));
+    glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
+    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+    glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
 
     // 6. Render
-    glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+    glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
 
-    // debug
-    //auto data = static_cast<Vertex *>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY));
+    // 7. Debug?
+    //auto vertices = reinterpret_cast<float*>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY));
     //glUnmapBuffer(GL_ARRAY_BUFFER);
 
+    auto indices = reinterpret_cast<unsigned int*>(glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_ONLY));
+    glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+
+    double last = glfwGetTime();
     while (!glfwWindowShouldClose(window.ptr())) {
+        double now = glfwGetTime();
+        double delta = now - last;
+        last = now;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        constexpr float angular_speed = 1.0f;
-        float angle = angular_speed * static_cast<float>(glfwGetTime());
-        glm::mat4 model_mtx = glm::rotate(glm::mat4(1.0f), angle, {0.0f, 1.0f, 0.0f});
-        model_mtx = glm::rotate(model_mtx, angle, {0.0f, 0.0f, 1.0f});
+        const int direction = glfwGetKey(window.ptr(), GLFW_KEY_D) - glfwGetKey(window.ptr(), GLFW_KEY_A);
+        if (direction) {
+            constexpr float camera_angular_speed {1.57f};
+            constexpr float camera_radius {5.0f};
+            camera_angle += camera_angular_speed * delta * direction;
+            camera_position.x = std::sin(camera_angle) * camera_radius;
+            camera_position.z = std::cos(camera_angle) * camera_radius;
+            view_mtx = glm::lookAt(camera_position, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+        }
 
-        cube_vao->bind();
+        terrain_vao->bind();
+
         lighting_program->useProgram();
-        glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(model_mtx));
-        glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
 
-        point_cloud_vao->bind();
+        if (direction) {
+            glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+            glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(camera_position));
+        }
+
+        glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT,
+                       reinterpret_cast<const void *>(index_mem.offset));
+
         point_program->useProgram();
-        glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(point_cloud_transform));
-        glDrawArrays(GL_POINTS, 0, point_count);
+
+        if (direction)
+            glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+
+        glDrawArrays(GL_POINTS, 0, vertex_count);
 
         glfwSwapBuffers(window.ptr());
         glfwPollEvents();

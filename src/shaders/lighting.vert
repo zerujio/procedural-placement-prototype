@@ -10,7 +10,6 @@ layout (location = 2) uniform mat4 u_projection;
 
 out vec3 f_normal;
 out vec3 f_position;
-out vec3 f_color;
 out vec2 f_texCoord;
 
 void main() {
@@ -18,6 +17,5 @@ void main() {
 
     f_normal = mat3(transpose(inverse(u_model))) * a_normal;
     f_position = vec3(u_model * vec4(a_position, 1.0));
-    f_color = abs(a_normal);
     f_texCoord = a_texCoord;
 }
