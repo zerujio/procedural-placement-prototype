@@ -66,6 +66,91 @@ TextureData loadTexture(const std::string &path) {
     return {texture, image.dimensions()};
 }
 
+class Camera {
+
+    static constexpr float pi = 3.14159265359f;
+
+public:
+    glm::vec2 angular_speed {pi / 2, pi / 4};
+    float linear_speed {1.5f};
+    float zoom_speed {10.0f};
+    float scale_acc_factor {.75f};
+
+    void move(glm::vec2 movement) {
+        glm::vec3 forward {std::cos(m_sphere_coord.z), 0., std::sin(m_sphere_coord.z)};
+        glm::vec3 right = glm::normalize(glm::cross(forward, {0, 1, 0}));
+        m_at += linear_speed * (forward * movement.y + right * movement.x) * scale_acc_factor * m_sphere_coord.x;
+        m_eye_offset = sphereToCartesian(m_sphere_coord);
+    }
+
+    void rotate(glm::vec2 rotation) {
+        m_sphere_coord.z += rotation.x * angular_speed.x;
+        m_sphere_coord.y += rotation.y * angular_speed.y;
+        m_sphere_coord.y = glm::min(pi, glm::max(0.01f, m_sphere_coord.y));
+        m_eye_offset = sphereToCartesian(m_sphere_coord);
+    }
+
+    void zoom(float z) {
+        m_sphere_coord.x += zoom_speed * z * scale_acc_factor * m_sphere_coord.x;
+        m_eye_offset = sphereToCartesian(m_sphere_coord);
+    }
+
+    [[nodiscard]]
+    glm::mat4 matrix() const {
+        return glm::lookAt(m_eye_offset + m_at, m_at, m_up);
+    }
+
+    [[nodiscard]]
+    glm::vec3 at() const {
+        return m_at;
+    }
+
+    [[nodiscard]]
+    glm::vec3 eye() const {
+        return m_at + m_eye_offset;
+    }
+
+private:
+
+    static glm::vec3 sphereToCartesian(glm::vec3 sphere) {
+        return {
+                std::cos(sphere.z) * std::sin(sphere.y) * sphere.x,
+                std::cos(sphere.y) * sphere.x,
+                std::sin(sphere.z) * std::sin(sphere.y) * sphere.x
+        };
+    }
+
+    glm::vec3 m_sphere_coord {2.5, pi / 4, 0.};
+    glm::vec3 m_at {0.0f};
+    glm::vec3 m_up {0., 1., 0.};
+    glm::vec3 m_eye_offset {sphereToCartesian(m_sphere_coord)};
+};
+
+Camera g_camera {};
+float g_frame_delta = 0;
+
+void mouseButtonCallback(GLFWwindow* w, int button, int action, int mods){
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        glfwSetInputMode(w, GLFW_CURSOR, action == GLFW_PRESS ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        glfwSetInputMode(w, GLFW_RAW_MOUSE_MOTION, action == GLFW_PRESS);
+    }
+}
+
+void scrollCallback(GLFWwindow* w, double x_offset, double y_offset) {
+    if (y_offset != 0)
+        g_camera.zoom(-y_offset * g_frame_delta);
+}
+
+void cursorPosCallback(GLFWwindow* w, double x_pos, double y_pos) {
+    static glm::vec2 prev_pos = {0., 0.};
+    glm::vec2 pos {x_pos, y_pos};
+    glm::vec2 delta = pos - prev_pos;
+    prev_pos = pos;
+
+    if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_LEFT))
+        g_camera.rotate(glm::vec2(1, -1) * delta * g_frame_delta);
+}
+
 int main() {
 
     glfwSetErrorCallback(glfwCallback);
@@ -76,9 +161,12 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-    GLFW::Window window{1024, 768, "Hello world!"};
+    GLFW::Window window {1024, 768, "Hello world!"};
 
     glfwMakeContextCurrent(window.ptr());
+    glfwSetMouseButtonCallback(window.ptr(), mouseButtonCallback);
+    glfwSetScrollCallback(window.ptr(), scrollCallback);
+    glfwSetCursorPosCallback(window.ptr(), cursorPosCallback);
 
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
         std::cerr << "OpenGL initialization failed" << std::endl;
@@ -119,7 +207,7 @@ int main() {
 
     // 2 Allocate/initialize GPU memory
     // 2.1 Calculate index/vertex count
-    const glm::ivec3 num_work_groups {8, 8, 1};
+    const glm::ivec3 num_work_groups {10, 10, 1};
     glm::ivec3 work_group_size;
     glGetProgramiv(compute_program->id(), GL_COMPUTE_WORK_GROUP_SIZE, glm::value_ptr(work_group_size));
     const glm::ivec3 num_compute_threads = num_work_groups * work_group_size;
@@ -210,20 +298,17 @@ int main() {
     auto terrain_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
     terrain_transform = glm::translate(terrain_transform, {-.5, 0, -.5});
 
-    float camera_angle = 3.14f;
-    glm::vec3 camera_position {0.0f, 2.5f, -5.0f};
-    glm::mat4 view_mtx = glm::lookAt(camera_position, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
     glm::mat4 proj_mtx = glm::perspectiveFov(70.0f, 1024.0f, 768.0f, 0.01f, 100.0f);
 
     lighting_program->useProgram();
     glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
     glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
-    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
-    glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(camera_position));
+    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
+    glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(g_camera.eye()));
 
     point_program->useProgram();
     glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
-    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
     glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
 
     // 6. Render
@@ -235,43 +320,35 @@ int main() {
     //auto vertices = reinterpret_cast<float*>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY));
     //glUnmapBuffer(GL_ARRAY_BUFFER);
 
-    auto indices = reinterpret_cast<unsigned int*>(glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_ONLY));
-    glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
 
     double last = glfwGetTime();
     while (!glfwWindowShouldClose(window.ptr())) {
         double now = glfwGetTime();
-        double delta = now - last;
+        g_frame_delta = now - last;
         last = now;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        const int direction = glfwGetKey(window.ptr(), GLFW_KEY_D) - glfwGetKey(window.ptr(), GLFW_KEY_A);
-        if (direction) {
-            constexpr float camera_angular_speed {1.57f};
-            constexpr float camera_radius {5.0f};
-            camera_angle += camera_angular_speed * delta * direction;
-            camera_position.x = std::sin(camera_angle) * camera_radius;
-            camera_position.z = std::cos(camera_angle) * camera_radius;
-            view_mtx = glm::lookAt(camera_position, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
-        }
+        glm::vec2 key_input = {
+                glfwGetKey(window.ptr(), GLFW_KEY_D) - glfwGetKey(window.ptr(), GLFW_KEY_A),
+                glfwGetKey(window.ptr(), GLFW_KEY_W) - glfwGetKey(window.ptr(), GLFW_KEY_S)
+        };
+        if (key_input != glm::vec2(0, 0))
+            g_camera.move(-glm::normalize(key_input) * g_frame_delta);
 
         terrain_vao->bind();
 
         lighting_program->useProgram();
 
-        if (direction) {
-            glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
-            glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(camera_position));
-        }
+        glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
+        glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(g_camera.eye()));
 
         glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT,
                        reinterpret_cast<const void *>(index_mem.offset));
 
         point_program->useProgram();
 
-        if (direction)
-            glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(view_mtx));
+        glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
 
         glDrawArrays(GL_POINTS, 0, vertex_count);
 

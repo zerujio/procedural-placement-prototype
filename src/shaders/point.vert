@@ -7,5 +7,5 @@ layout (location = 1) uniform mat4 u_view;
 layout (location = 2) uniform mat4 u_projection;
 
 void main() {
-    gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0f);
+    gl_Position = u_projection * u_view * (u_model * vec4(a_position, 1.0f) + vec4(0, 0.01, 0, 0));
 }
