@@ -2,7 +2,7 @@
 
 layout (local_size_x = 8, local_size_y = 8) in;
 
-layout (binding = 0) uniform sampler2D u_heightmap;
+layout (binding = 0) uniform sampler2D u_worldData;
 
 layout (std430, binding = 0) restrict writeonly
 buffer Positions {
@@ -28,13 +28,13 @@ void main() {
     uvec2 grid_size = (gl_WorkGroupSize * gl_NumWorkGroups).xy;
     uint thread_id = gl_GlobalInvocationID.y * grid_size.x + gl_GlobalInvocationID.x;
 
-    vec2 texCoord = vec2(gl_GlobalInvocationID) / vec2(grid_size - 1);
-    float height = texture(u_heightmap, texCoord).r;
+    vec2 texCoord = vec2(gl_GlobalInvocationID) / (grid_size.xy - 1);
+    float height = texture(u_worldData, texCoord).r;
 
-    vec2 texCoord_plus_d = vec2(gl_GlobalInvocationID + 1) / vec2(grid_size - 1);
+    vec2 texCoord_plus_d = vec2(gl_GlobalInvocationID + 1) / (grid_size.xy - 1);
     vec2 height_plus_d = {
-        texture(u_heightmap, vec2(texCoord_plus_d.x, texCoord.y)).x,
-        texture(u_heightmap, vec2(texCoord.x, texCoord_plus_d.y)).x
+        texture(u_worldData, vec2(texCoord_plus_d.x, texCoord.y)).x,
+        texture(u_worldData, vec2(texCoord.x, texCoord_plus_d.y)).x
     };
     vec2 dheight_d = (height_plus_d - height) / (texCoord_plus_d - texCoord);
 

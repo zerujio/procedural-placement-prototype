@@ -1,0 +1,35 @@
+#version 460
+
+layout(local_size_x = 4, local_size_y = 4) in;
+
+struct Points {
+    vec3 position;
+    vec4 color;
+};
+
+layout (std430, binding = 0) restrict writeonly
+buffer Points {
+    Point points[];
+};
+
+layout (binding = 0) uniform sampler2D u_worldData;
+layout (binding = 1) uniform vec2 u_texCoordOffset;
+layout (binding = 2) uniform vec2 u_texCoordScale;
+
+const mat4 dithering_matrix = {
+    { 0, 12, 3, 15 },
+    { 8, 4, 11, 7 },
+    { 2, 14, 1, 13 },
+    { 10, 6, 9, 5 }
+};
+
+void main() {
+    uvec2 grid_size = gl_WorkGroupSize.xy * gl_NumWorkGroups.xy;
+    uint thread_id = glGlobalInvocationID.y * grid_size.x + gl_GlobalInvocationID.x;
+
+    vec2 texCoord = u_texCoordOffset + u_texCoordScale * gl_GlobalInvocationID.xy / (grid_size - 1).xy;
+    vec4 texSample = texture(u_worldData, texCoord);
+    float value = texSample.y * texSample.z;
+
+
+}

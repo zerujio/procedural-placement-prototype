@@ -1,3 +1,7 @@
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -41,7 +45,6 @@ TextureData loadTexture(const std::string &path) {
     using Format = GL::Texture::Format;
     using Type = GL::Texture::Type;
 
-
     const std::pair<IFormat, Format> formats[] {
             {IFormat::R8, Format::Red},
             {IFormat::RG8, Format::RG},
@@ -76,6 +79,11 @@ public:
     float zoom_speed {10.0f};
     float scale_acc_factor {.75f};
 
+    glm::ivec2 screen_size {1024, 768};
+    float fov = pi / 4;
+    float z_near = 0.01f;
+    float z_far = 1000.0f;
+
     void move(glm::vec2 movement) {
         glm::vec3 forward {std::cos(m_sphere_coord.z), 0., std::sin(m_sphere_coord.z)};
         glm::vec3 right = glm::normalize(glm::cross(forward, {0, 1, 0}));
@@ -86,7 +94,7 @@ public:
     void rotate(glm::vec2 rotation) {
         m_sphere_coord.z += rotation.x * angular_speed.x;
         m_sphere_coord.y += rotation.y * angular_speed.y;
-        m_sphere_coord.y = glm::min(pi, glm::max(0.01f, m_sphere_coord.y));
+        m_sphere_coord.y = glm::min(pi - 0.01f, glm::max(0.01f, m_sphere_coord.y));
         m_eye_offset = sphereToCartesian(m_sphere_coord);
     }
 
@@ -96,8 +104,13 @@ public:
     }
 
     [[nodiscard]]
-    glm::mat4 matrix() const {
+    glm::mat4 viewMatrix() const {
         return glm::lookAt(m_eye_offset + m_at, m_at, m_up);
+    }
+
+    [[nodiscard]]
+    glm::mat4 projMatrix() const {
+        return glm::perspectiveFov(fov, static_cast<float>(screen_size.x), static_cast<float>(screen_size.y), z_near, z_far);
     }
 
     [[nodiscard]]
@@ -130,7 +143,7 @@ Camera g_camera {};
 float g_frame_delta = 0;
 
 void mouseButtonCallback(GLFWwindow* w, int button, int action, int mods){
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         glfwSetInputMode(w, GLFW_CURSOR, action == GLFW_PRESS ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         glfwSetInputMode(w, GLFW_RAW_MOUSE_MOTION, action == GLFW_PRESS);
     }
@@ -147,8 +160,13 @@ void cursorPosCallback(GLFWwindow* w, double x_pos, double y_pos) {
     glm::vec2 delta = pos - prev_pos;
     prev_pos = pos;
 
-    if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_LEFT))
+    if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_RIGHT))
         g_camera.rotate(glm::vec2(1, -1) * delta * g_frame_delta);
+}
+
+void frameBufferSizeCallback(GLFWwindow* w, int width, int height) {
+    glViewport(0, 0, width, height);
+    g_camera.screen_size = {width, height};
 }
 
 int main() {
@@ -161,12 +179,17 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-    GLFW::Window window {1024, 768, "Hello world!"};
+    GLFW::Window window {
+        static_cast<unsigned int>(g_camera.screen_size.x),
+        static_cast<unsigned int>(g_camera.screen_size.y),
+        "Hello world!"
+    };
 
     glfwMakeContextCurrent(window.ptr());
     glfwSetMouseButtonCallback(window.ptr(), mouseButtonCallback);
     glfwSetScrollCallback(window.ptr(), scrollCallback);
     glfwSetCursorPosCallback(window.ptr(), cursorPosCallback);
+    glfwSetFramebufferSizeCallback(window.ptr(), frameBufferSizeCallback);
 
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
         std::cerr << "OpenGL initialization failed" << std::endl;
@@ -174,6 +197,17 @@ int main() {
     }
 
     GL::enableDebugMessageCallback();
+
+
+    // ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    //ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window.ptr(), true);
+    ImGui_ImplOpenGL3_Init("#version 150");
 
     // 1 Load shaders
     // 1.1 Compute shader for terrain generation
@@ -196,18 +230,28 @@ int main() {
     }
 
     // 1.3 Shader with lighting
-    GL::ObjectManager<GL::ShaderProgram> lighting_program;
+    GL::ObjectManager<GL::ShaderProgram> textured_program;
     {
-        GL::ObjectManager vertex_shader{loadShader("shaders/lighting.vert", GL::ShaderType::Vertex)};
-        GL::ObjectManager fragment_shader{loadShader("shaders/lighting.frag", GL::ShaderType::Fragment)};
-        lighting_program->attachShader(vertex_shader.handle());
-        lighting_program->attachShader(fragment_shader.handle());
-        lighting_program->linkProgram();
+        GL::ObjectManager vertex_shader{loadShader("shaders/textured.vert", GL::ShaderType::Vertex)};
+        GL::ObjectManager fragment_shader{loadShader("shaders/textured.frag", GL::ShaderType::Fragment)};
+        textured_program->attachShader(vertex_shader.handle());
+        textured_program->attachShader(fragment_shader.handle());
+        textured_program->linkProgram();
+    }
+
+    // 1.4 Shader with lighting and blended textures
+    GL::ObjectManager<GL::ShaderProgram> tex_blend_program;
+    {
+        GL::ObjectManager vertex_shader {loadShader("shaders/textured.vert", GL::ShaderType::Vertex)};
+        GL::ObjectManager fragment_shader {loadShader("shaders/blend_textured.frag", GL::ShaderType::Fragment)};
+        tex_blend_program->attachShader(vertex_shader.handle());
+        tex_blend_program->attachShader(fragment_shader.handle());
+        tex_blend_program->linkProgram();
     }
 
     // 2 Allocate/initialize GPU memory
     // 2.1 Calculate index/vertex count
-    const glm::ivec3 num_work_groups {10, 10, 1};
+    const glm::ivec3 num_work_groups {16, 16, 1};
     glm::ivec3 work_group_size;
     glGetProgramiv(compute_program->id(), GL_COMPUTE_WORK_GROUP_SIZE, glm::value_ptr(work_group_size));
     const glm::ivec3 num_compute_threads = num_work_groups * work_group_size;
@@ -240,8 +284,14 @@ int main() {
 
     // vec3's are padded to sizeof(vec4) in SSB0's
     GPUMemoryRange position_mem {0, vertex_count * static_cast<GLsizei>(sizeof(glm::vec4))};
-    GPUMemoryRange normal_mem {position_mem.size, vertex_count * static_cast<GLsizei>(sizeof(glm::vec4))};
-    GPUMemoryRange tex_coord_mem {normal_mem.offset + normal_mem.size, vertex_count * static_cast<GLsizei>(sizeof(glm::vec2))};
+    GPUMemoryRange normal_mem {
+        position_mem.size,
+        vertex_count * static_cast<GLsizei>(sizeof(glm::vec4))
+    };
+    GPUMemoryRange tex_coord_mem {
+        normal_mem.offset + normal_mem.size,
+        vertex_count * static_cast<GLsizei>(sizeof(glm::vec2))
+    };
 
     // 3.1 Bind SSBO
     compute_program->useProgram();
@@ -255,11 +305,13 @@ int main() {
     index_buffer->bind(GL::Buffer::Target::ShaderStorage);
     glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 3, index_buffer->id(), index_mem.offset, index_mem.size);
 
-    // 3.2 Bind heightmap texture
-    auto heightmap_tex_data = loadTexture("heightmap.png");
-    GL::ObjectManager<GL::Texture> heightmap_texture {heightmap_tex_data.gl_texture};
+    // 3.2 Bind world data texture
     GL::Texture::setActive(0);
-    heightmap_texture->bind(GL::Texture::Target::Tex2D);
+    auto world_data_texdata = loadTexture("world-data.png");
+    GL::ObjectManager<GL::Texture> world_data_texture {world_data_texdata.gl_texture};
+    world_data_texture->setWrapMode(GL::Texture::Target::Tex2D, GL::Texture::WrapAxis::R, GL::Texture::WrapMode::ClampToBorder);
+    world_data_texture->setWrapMode(GL::Texture::Target::Tex2D, GL::Texture::WrapAxis::S, GL::Texture::WrapMode::ClampToBorder);
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, glm::value_ptr(glm::vec3()));
 
     // 3.3 Execute compute shader
     glDispatchCompute(num_work_groups.x, num_work_groups.y, num_work_groups.z);
@@ -298,18 +350,27 @@ int main() {
     auto terrain_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
     terrain_transform = glm::translate(terrain_transform, {-.5, 0, -.5});
 
-    glm::mat4 proj_mtx = glm::perspectiveFov(70.0f, 1024.0f, 768.0f, 0.01f, 100.0f);
-
-    lighting_program->useProgram();
+    textured_program->useProgram();
     glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
-    glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
-    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
-    glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(g_camera.eye()));
 
     point_program->useProgram();
     glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
-    glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
-    glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(proj_mtx));
+
+    tex_blend_program->useProgram();
+    glUniformMatrix4fv(u_model_loc, 1, GL_FALSE, glm::value_ptr(terrain_transform));
+
+    int u_blend_tex_loc = glGetUniformLocation(tex_blend_program->id(), "u_blendTexture");
+    //int u_blend_tex_scale_loc = glGetUniformLocation(tex_blend_program->id(), "u_blendTexScale");
+    GL::Texture::setActive(1);
+    auto heightmap_tex_data = loadTexture("heightmap.png");
+    GL::ObjectManager heightmap_texture {heightmap_tex_data.gl_texture};
+    glUniform1i(u_blend_tex_loc, 1);
+
+    int u_color0_loc = glGetUniformLocation(tex_blend_program->id(), "u_color0");
+    glm::vec4 u_color0 {.9, .9, .9, 1.};
+
+    int u_color1_loc = glGetUniformLocation(tex_blend_program->id(), "u_color1");
+    glm::vec4 u_color1 {.25, .3, .12, 1.};
 
     // 6. Render
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
@@ -320,9 +381,14 @@ int main() {
     //auto vertices = reinterpret_cast<float*>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY));
     //glUnmapBuffer(GL_ARRAY_BUFFER);
 
-
+    bool show_points = false;
+    bool show_world_data = false;
+    glm::vec4 color = {.7, .7, .7, .5};
     double last = glfwGetTime();
+
     while (!glfwWindowShouldClose(window.ptr())) {
+        glfwPollEvents();
+
         double now = glfwGetTime();
         g_frame_delta = now - last;
         last = now;
@@ -338,23 +404,59 @@ int main() {
 
         terrain_vao->bind();
 
-        lighting_program->useProgram();
-
-        glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
+        if (show_world_data)
+            textured_program->useProgram();
+        else {
+            tex_blend_program->useProgram();
+            glUniform4fv(u_color0_loc, 1, glm::value_ptr(u_color0));
+            glUniform4fv(u_color1_loc, 1, glm::value_ptr(u_color1));
+        }
+        glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(g_camera.projMatrix()));
+        glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.viewMatrix()));
         glUniform3fv(u_view_pos_loc, 1, glm::value_ptr(g_camera.eye()));
 
-        glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT,
-                       reinterpret_cast<const void *>(index_mem.offset));
+        glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, reinterpret_cast<const void *>(index_mem.offset));
 
-        point_program->useProgram();
+        if (show_points) {
+            point_program->useProgram();
+            glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.viewMatrix()));
+            glUniformMatrix4fv(u_proj_loc, 1, GL_FALSE, glm::value_ptr(g_camera.projMatrix()));
+            glUniform4fv(4, 1, glm::value_ptr(color));
+            glDrawArrays(GL_POINTS, 0, vertex_count);
+        }
 
-        glUniformMatrix4fv(u_view_loc, 1, GL_FALSE, glm::value_ptr(g_camera.matrix()));
+        // ImGui
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-        glDrawArrays(GL_POINTS, 0, vertex_count);
+        ImGui::Begin("Controles");
+
+        ImGui::Text("WASD: desplazamiento");
+        ImGui::Text("Click derecho: rotar cámara");
+        ImGui::Text("Rueda del ratón: zoom");
+
+        ImGui::Separator();
+        ImGui::Checkbox("Mostrar vértices", &show_points);
+        ImGui::ColorEdit4("Color", glm::value_ptr(color));
+
+        ImGui::Separator();
+        ImGui::Checkbox("Mostrar WorldData", &show_world_data);
+        ImGui::ColorEdit4("Color0", glm::value_ptr(u_color0));
+        ImGui::ColorEdit4("Color1", glm::value_ptr(u_color1));
+
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // ImGui
 
         glfwSwapBuffers(window.ptr());
-        glfwPollEvents();
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     return 0;
 }
