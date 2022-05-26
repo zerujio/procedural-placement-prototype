@@ -27,7 +27,9 @@ void glfwCallback(int error_code, const char *description) {
 GL::Shader loadShader(const std::string &path, GL::ShaderType shader_type) {
     std::fstream file {path};
     auto shader = GL::Shader::create(shader_type);
-    shader.setSource((std::stringstream() << file.rdbuf()).str());
+    std::stringstream sstream;
+    sstream << file.rdbuf();
+    shader.setSource( sstream.str() );
     shader.compileShader();
 
     return shader;
