@@ -25,6 +25,10 @@ public:
 
     void useProgram() const;
 
+    GLint getUniformLocation(const char* name) const;
+
+    GLint getAttribLocation(const char* name) const;
+
     [[nodiscard]] GLuint id() const;
 
 protected:

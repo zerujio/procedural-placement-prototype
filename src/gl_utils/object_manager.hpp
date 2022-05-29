@@ -1,6 +1,8 @@
 #ifndef GL_UTILS_OBJECT_MANAGER_HPP
 #define GL_UTILS_OBJECT_MANAGER_HPP
 
+#include <stdexcept>
+
 namespace GL {
 
 template<class Object>
@@ -10,7 +12,10 @@ public:
     template<class... Args>
     ObjectManager(Args... args)
     : m_handle(Object::create(args...))
-    {}
+    {
+        if (!m_handle.valid())
+            throw std::runtime_error("Object creation failed!");
+    }
 
     explicit ObjectManager(Object object)
     : m_handle(object)
@@ -41,6 +46,10 @@ public:
 
     Object* operator->() {
         return &m_handle;
+    }
+
+    operator Object() const {
+        return m_handle;
     }
 
 private:

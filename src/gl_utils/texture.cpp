@@ -62,6 +62,10 @@ void Texture::setWrapMode(Texture::Target target, Texture::WrapAxis axis, Textur
     glTexParameteri(static_cast<GLenum>(target), static_cast<GLenum>(axis), static_cast<GLint>(mode));
 }
 
+void Texture::setWrapMode(WrapAxis axis, WrapMode mode) const {
+    glTextureParameteri(m_id,  static_cast<GLenum>(axis), static_cast<GLint>(mode));
+}
+
 void Texture::setActive(GLubyte i) {
     glActiveTexture(GL_TEXTURE0 + i);
 }

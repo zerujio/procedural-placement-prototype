@@ -16,7 +16,7 @@ public:
     explicit Image(const std::string& file_name);
 
     /**
-     * @brief Access image buffer.
+     * @brief Access image vertex_buffer.
      * @return Pointer raw image data.
      */
     [[nodiscard]] const unsigned char* data() const;

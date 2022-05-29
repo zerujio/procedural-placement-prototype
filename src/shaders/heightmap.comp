@@ -2,7 +2,7 @@
 
 layout (local_size_x = 8, local_size_y = 8) in;
 
-layout (binding = 0) uniform sampler2D u_worldData;
+uniform sampler2D u_worldData;
 
 layout (std430, binding = 0) restrict writeonly
 buffer Positions {
@@ -39,11 +39,11 @@ void main() {
     vec2 dheight_d = (height_plus_d - height) / (texCoord_plus_d - texCoord);
 
     positions[thread_id] = vec3(texCoord.x, height, texCoord.y);
-    normals[thread_id] = vec3(-dheight_d.x, 1, -dheight_d.y);
+    normals[thread_id] =  normalize(vec3(-dheight_d.x, 1, -dheight_d.y));
     texCoords[thread_id] = texCoord;
 
     // write indices to EBO
-    if (gl_GlobalInvocationID.x < grid_size.x - 1 && gl_GlobalInvocationID.y < grid_size.y - 1) {
+    if (gl_GlobalInvocationID.x < grid_size.x - 1 && gl_GlobalInvocationID.y < grid_size.y) {
         uint offset = thread_id * 6;
         indices[offset] = thread_id;
         indices[offset + 1] = thread_id + grid_size.x + 1;

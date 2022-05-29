@@ -33,11 +33,24 @@ public:
 
     void bind(Target target) const;
 
-    static void setData(Target target, GLsizeiptr size, const void *data, Usage usage);
+    /// Allocate uninitialized memory.
+    void allocate(GLsizeiptr size, Usage usage) const;
 
+    /// Allocate memory and initialize it to the contents of @p data.
+    void initialize(GLsizeiptr size, const void *data, Usage usage) const;
+
+    /// Write data to vertex_buffer starting at @p offset (measured in bytes).
+    void writeData(GLintptr offset, GLsizeiptr size, const void *data) const;
+
+    /**
+     * @brief Allocate memory and initialize it to the contents of @p data.
+     * @param data A contiguous container, such as std::vector.
+     * @param usage OpenGL vertex_buffer usage hint.
+     */
     template<class Container>
-    static void setData(Target target, Container data, Usage usage) {
-        setData(target, data.size() * sizeof(Container::value_type), data.data(), usage);
+    void initialize(Container data, Usage usage) const {
+        auto alignment = std::alignment_of_v<typename Container::value_type>;
+        initialize(data.size() * alignment, data.data(), usage);
     }
 
     [[nodiscard]] GLuint id() const;

@@ -50,4 +50,12 @@ GLuint ShaderProgram::id() const {
     return m_id;
 }
 
+GLint ShaderProgram::getUniformLocation(const char *name) const {
+    return glGetUniformLocation(m_id, name);
+}
+
+GLint ShaderProgram::getAttribLocation(const char *name) const {
+    return glGetAttribLocation(m_id, name);
+}
+
 } // GL

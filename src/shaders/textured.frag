@@ -6,7 +6,7 @@ in vec2 f_texCoord;
 
 out vec4 final_color;
 
-layout (binding = 0) uniform sampler2D u_texture;
+uniform sampler2D u_texture;
 uniform vec2 u_texScale = {1, 1};
 
 layout (location = 3) uniform vec3 u_lightColor = {1.0f, 1.0f, 1.0f};

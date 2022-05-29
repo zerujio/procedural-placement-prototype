@@ -207,6 +207,11 @@ public:
     };
 
     static void setWrapMode(Target target, WrapAxis axis, WrapMode mode);
+    void setWrapMode(WrapAxis axis, WrapMode mode) const;
+
+    GLuint id() const {
+        return m_id;
+    }
 
 private:
     explicit Texture(GLuint id) : m_id(id) {}
