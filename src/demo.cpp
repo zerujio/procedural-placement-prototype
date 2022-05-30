@@ -6,6 +6,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <iostream>
+
 struct MemoryRange {
     GLintptr offset;
     GLsizeiptr size;
@@ -105,6 +107,14 @@ void Scene::Terrain::generateMesh(glm::uvec2 num_work_groups) {
     vao.enableAttrib(a_uv_loc);
 
     vao.bindElementBuffer(element_buffer);
+
+    // debug
+    auto indices = static_cast<const GLuint*>(glMapNamedBuffer(element_buffer->id(), GL_READ_ONLY));
+    for (unsigned int i = 0; i < shape.index_count; i+=6) {
+        std::cout << "[" << indices[i] << ", " << indices[i + 1] << ", " << indices[i + 2] << "] "
+                  << "[" << indices[i + 3] << ", " << indices[i + 4] << ", " << indices[i + 5] << "]\n";
+    }
+    glUnmapNamedBuffer(element_buffer->id());
 }
 
 Scene::Axes::Axes() {
@@ -121,8 +131,8 @@ Scene::Axes::Axes() {
 
     GL::VertexArray vao = shape.vertex_array.handle();
 
-    GLsizei stride = 2 * sizeof(glm::vec3);
-    GLuint buffer_binding_index = 0;
+    const GLsizei stride = 2 * sizeof(glm::vec3);
+    const GLuint buffer_binding_index = 0;
     vao.bindVertexBuffer(0, buffer, buffer_binding_index, stride);
 
     using AttribLocation = GLint;
@@ -143,7 +153,7 @@ Scene::Axes::Axes() {
 }
 
 Scene::Scene() {
-    terrain.generateMesh({16, 16});
+    terrain.generateMesh({1, 1});
 
     auto terrain_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
     terrain_transform = glm::translate(terrain_transform, {-.5, 0, -.5});

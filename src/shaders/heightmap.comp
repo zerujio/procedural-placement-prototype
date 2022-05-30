@@ -24,9 +24,19 @@ buffer Indices {
     uint indices[];
 };
 
+uvec2 gridSize() {
+    return (gl_WorkGroupSize * gl_NumWorkGroups).xy;
+}
+
+uint threadId(uint x_offset, uint y_offset) {
+    const uvec2 offset = {x_offset, y_offset};
+    const uvec2 id = gl_GlobalInvocationID.xy + offset;
+    return id.y * (gl_WorkGroupSize * gl_NumWorkGroups).x + id.x;
+}
+
 void main() {
-    uvec2 grid_size = (gl_WorkGroupSize * gl_NumWorkGroups).xy;
-    uint thread_id = gl_GlobalInvocationID.y * grid_size.x + gl_GlobalInvocationID.x;
+    uvec2 grid_size = gridSize();
+    uint thread_id = threadId(0, 0);
 
     vec2 texCoord = vec2(gl_GlobalInvocationID) / (grid_size.xy - 1);
     float height = texture(u_worldData, texCoord).r;
@@ -39,17 +49,17 @@ void main() {
     vec2 dheight_d = (height_plus_d - height) / (texCoord_plus_d - texCoord);
 
     positions[thread_id] = vec3(texCoord.x, height, texCoord.y);
-    normals[thread_id] =  normalize(vec3(-dheight_d.x, 1, -dheight_d.y));
+    normals[thread_id] = normalize(vec3(-dheight_d.x, 1, -dheight_d.y));
     texCoords[thread_id] = texCoord;
 
     // write indices to EBO
-    if (gl_GlobalInvocationID.x < grid_size.x - 1 && gl_GlobalInvocationID.y < grid_size.y) {
+    if (gl_GlobalInvocationID.x < grid_size.x - 1 && gl_GlobalInvocationID.y < grid_size.y - 1) {
         uint offset = thread_id * 6;
         indices[offset] = thread_id;
-        indices[offset + 1] = thread_id + grid_size.x + 1;
-        indices[offset + 2] = thread_id + 1;
-        indices[offset + 3] = thread_id + grid_size.x + 1;
+        indices[offset + 1] = threadId(1, 1);
+        indices[offset + 2] = threadId(1, 0);
+        indices[offset + 3] = threadId(1, 1);
         indices[offset + 4] = thread_id;
-        indices[offset + 5] = thread_id + grid_size.x;
+        indices[offset + 5] = threadId(0, 1);
     }
 }

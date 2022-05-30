@@ -80,7 +80,7 @@ private:
         GL::ObjectManager<GL::Buffer> element_buffer;
 
         ElementShape shape;
-        GLsizei vertex_count;
+        GLsizei vertex_count {0};
 
         bool show_world_data {false};
         bool show_vertices_only {false};
