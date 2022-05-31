@@ -32,6 +32,7 @@ Scene::Terrain::Terrain() {
    glTextureParameterfv(world_data_texture->id(), GL_TEXTURE_BORDER_COLOR, glm::value_ptr(border_color));
 
    shape.mode = GL_TRIANGLES;
+    shape.index_type = GL_UNSIGNED_INT;
 
    constexpr GLint world_data_tex_unit = 0;
    constexpr GLint blend_tex_unit = 1;
@@ -42,15 +43,16 @@ Scene::Terrain::Terrain() {
    glProgramUniform1i(texture_program->id(), loc_texture, world_data_tex_unit);
    glProgramUniform1i(compute_program->id(), loc_computeWorldData, world_data_tex_unit);
    glProgramUniform1i(blend_program->id(), loc_blendTexture, blend_tex_unit);
+
+   generateMesh();
 }
 
-void Scene::Terrain::generateMesh(glm::uvec2 num_work_groups) {
-    shape.index_type = GL_UNSIGNED_INT;
+void Scene::Terrain::generateMesh() {
     shape.index_offset = 0;
 
     glm::ivec3 work_group_size;
     glGetProgramiv(compute_program->id(), GL_COMPUTE_WORK_GROUP_SIZE, glm::value_ptr(work_group_size));
-    const glm::uvec2 num_compute_threads = num_work_groups * glm::uvec2(work_group_size);
+    const glm::uvec2 num_compute_threads = num_work_groups * glm::ivec2(work_group_size);
 
     vertex_count = num_compute_threads.x * num_compute_threads.y;
     shape.index_count = (num_compute_threads.x - 1) * (num_compute_threads.y - 1) * 6;
@@ -107,14 +109,6 @@ void Scene::Terrain::generateMesh(glm::uvec2 num_work_groups) {
     vao.enableAttrib(a_uv_loc);
 
     vao.bindElementBuffer(element_buffer);
-
-    // debug
-    auto indices = static_cast<const GLuint*>(glMapNamedBuffer(element_buffer->id(), GL_READ_ONLY));
-    for (unsigned int i = 0; i < shape.index_count; i+=6) {
-        std::cout << "[" << indices[i] << ", " << indices[i + 1] << ", " << indices[i + 2] << "] "
-                  << "[" << indices[i + 3] << ", " << indices[i + 4] << ", " << indices[i + 5] << "]\n";
-    }
-    glUnmapNamedBuffer(element_buffer->id());
 }
 
 Scene::Axes::Axes() {
@@ -153,8 +147,6 @@ Scene::Axes::Axes() {
 }
 
 Scene::Scene() {
-    terrain.generateMesh({1, 1});
-
     auto terrain_transform = glm::scale(glm::mat4(1.0f), {10, 0.52, 7.62});
     terrain_transform = glm::translate(terrain_transform, {-.5, 0, -.5});
 
@@ -233,6 +225,15 @@ void Scene::update(GLFWwindow *w, double delta) {
     terrain.shape.vertex_array->bind();
 
     ImGui::Separator();
+
+    ImGui::Text("Terreno");
+
+    if (ImGui::InputInt2("NumWorkGroups", glm::value_ptr(terrain.num_work_groups))) {
+        terrain.num_work_groups = glm::max(terrain.num_work_groups, {1, 1});
+    }
+    if (ImGui::Button("Regenerar malla")) {
+        terrain.generateMesh();
+    }
 
     ImGui::Checkbox("Mostrar WorldData", &terrain.show_world_data);
     if (terrain.show_world_data)

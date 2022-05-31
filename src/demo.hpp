@@ -48,7 +48,7 @@ private:
     struct Terrain {
         Terrain();
 
-        void generateMesh(glm::uvec2 num_work_groups);
+        void generateMesh();
 
         enum UniformLocation {
             loc_model,
@@ -73,6 +73,7 @@ private:
 
         GL::ObjectManager<GL::ShaderProgram> compute_program {loadComputeProgram("shaders/heightmap.comp")};
         const GLint loc_computeWorldData = compute_program->getUniformLocation("u_worldData");
+        glm::ivec2 num_work_groups {1, 1};
 
         GL::ObjectManager<GL::Texture> world_data_texture {loadTexture("assets/world_data.png")};
         GL::ObjectManager<GL::Texture> heightmap_texture {loadTexture("assets/heightmap.png")};
