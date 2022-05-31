@@ -54,10 +54,12 @@ void main() {
 
     // write indices to EBO
     if (gl_GlobalInvocationID.x < grid_size.x - 1 && gl_GlobalInvocationID.y < grid_size.y - 1) {
-        uint offset = thread_id * 6;
+        uint offset = (gl_GlobalInvocationID.y * (grid_size.x - 1) + gl_GlobalInvocationID.x) * 6;
+
         indices[offset] = thread_id;
         indices[offset + 1] = threadId(1, 1);
         indices[offset + 2] = threadId(1, 0);
+
         indices[offset + 3] = threadId(1, 1);
         indices[offset + 4] = thread_id;
         indices[offset + 5] = threadId(0, 1);
