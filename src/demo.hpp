@@ -43,7 +43,7 @@ private:
 
     Camera camera;
     bool m_view_changed {true};
-    bool m_proj_chaged {true};
+    bool m_proj_changed {true};
 
     struct Terrain {
         Terrain();
@@ -73,7 +73,7 @@ private:
 
         GL::ObjectManager<GL::ShaderProgram> compute_program {loadComputeProgram("shaders/heightmap.comp")};
         const GLint loc_computeWorldData = compute_program->getUniformLocation("u_worldData");
-        glm::ivec2 num_work_groups {1, 1};
+        glm::ivec2 num_work_groups {8, 8};
 
         GL::ObjectManager<GL::Texture> world_data_texture {loadTexture("assets/world_data.png")};
         GL::ObjectManager<GL::Texture> heightmap_texture {loadTexture("assets/heightmap.png")};

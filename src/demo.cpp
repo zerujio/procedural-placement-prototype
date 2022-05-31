@@ -21,15 +21,12 @@ void Scene::scrollCallback(GLFWwindow* w, double delta, glm::dvec2 offset) {
 
 void Scene::frameBufferSizeCallback(GLFWwindow* w, double, glm::ivec2 size) {
     camera.screen_size = size;
-    m_proj_chaged = true;
+    m_proj_changed = true;
 }
 
 Scene::Terrain::Terrain() {
-   world_data_texture->setWrapMode(GL::Texture::WrapAxis::S, GL::Texture::WrapMode::ClampToBorder);
-   world_data_texture->setWrapMode(GL::Texture::WrapAxis::T, GL::Texture::WrapMode::ClampToBorder);
-
-   const glm::vec4 border_color;
-   glTextureParameterfv(world_data_texture->id(), GL_TEXTURE_BORDER_COLOR, glm::value_ptr(border_color));
+   world_data_texture->setWrapMode(GL::Texture::WrapAxis::S, GL::Texture::WrapMode::ClampToEdge);
+   world_data_texture->setWrapMode(GL::Texture::WrapAxis::T, GL::Texture::WrapMode::ClampToEdge);
 
    shape.mode = GL_TRIANGLES;
     shape.index_type = GL_UNSIGNED_INT;
@@ -212,14 +209,14 @@ void Scene::update(GLFWwindow *w, double delta) {
         m_view_changed = false;
     }
 
-    if (m_proj_chaged) {
+    if (m_proj_changed) {
         auto proj_matrix = camera.projMatrix();
 
         glProgramUniformMatrix4fv(terrain.texture_program->id(), Terrain::loc_proj, 1, false, glm::value_ptr(proj_matrix));
         glProgramUniformMatrix4fv(terrain.blend_program->id(), Terrain::loc_proj, 1, false, glm::value_ptr(proj_matrix));
         glProgramUniformMatrix4fv(axes.program->id(), axes.loc_proj, 1, false, glm::value_ptr(proj_matrix));
 
-        m_proj_chaged = false;
+        m_proj_changed = false;
     }
 
     terrain.shape.vertex_array->bind();
