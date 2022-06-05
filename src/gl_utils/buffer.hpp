@@ -14,7 +14,8 @@ public:
     enum class Target {
         Array = GL_ARRAY_BUFFER,
         ElementArray = GL_ELEMENT_ARRAY_BUFFER,
-        ShaderStorage = GL_SHADER_STORAGE_BUFFER
+        ShaderStorage = GL_SHADER_STORAGE_BUFFER,
+        DispatchIndirect = GL_DISPATCH_INDIRECT_BUFFER
     };
 
     enum class Usage {

@@ -1,4 +1,4 @@
-#include "demo.hpp"
+#include "scene.hpp"
 
 #include "glfw_utils/window.hpp"
 #include "glfw_utils/init.hpp"
@@ -83,6 +83,7 @@ int main() {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_PROGRAM_POINT_SIZE);
 
     ImGuiInitSentry ImGui_init_sentry(window.ptr());
 

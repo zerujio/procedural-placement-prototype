@@ -6,7 +6,7 @@ in vec2 f_texCoord;
 
 out vec4 final_color;
 
-uniform sampler2D u_blendTexture;
+uniform sampler2D u_worldData;
 uniform vec2 u_blendTexScale = {1, 1};
 uniform vec4 u_color0 = {0, 0, 0, 1};
 uniform vec4 u_color1 = {1, 1, 1, 1};
@@ -27,8 +27,8 @@ void main() {
 
     vec3 total_light_color = (u_ambientStrength + diffuse_strength + u_specularStrength * spec) * u_lightColor;
 
-    vec4 alpha_vector = texture(u_blendTexture, f_texCoord * u_blendTexScale);
-    vec4 object_color = alpha_vector * u_color0 + (1 - alpha_vector) * u_color1;
+    float alpha = texture(u_worldData, f_texCoord * u_blendTexScale).x;
+    vec4 object_color = alpha * u_color0 + (1 - alpha) * u_color1;
 
     final_color = vec4(total_light_color, 1.0) * object_color;
 }

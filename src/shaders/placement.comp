@@ -2,34 +2,62 @@
 
 layout(local_size_x = 4, local_size_y = 4) in;
 
-struct Points {
-    vec3 position;
-    vec4 color;
-};
+uniform sampler2D u_world_data;
+uniform vec2 u_tex_coord_offset;
+uniform vec2 u_tex_coord_scale;
 
-layout (std430, binding = 0) restrict writeonly
+layout (std430, binding = 0) restrict coherent
 buffer Points {
-    Point points[];
-};
+    uint count;
+    vec3 positions[];
+} b_points;
 
-layout (binding = 0) uniform sampler2D u_worldData;
-layout (binding = 1) uniform vec2 u_texCoordOffset;
-layout (binding = 2) uniform vec2 u_texCoordScale;
+shared uint s_local_count;
+shared uint s_write_index_offset;
 
-const mat4 dithering_matrix = {
-    { 0, 12, 3, 15 },
-    { 8, 4, 11, 7 },
-    { 2, 14, 1, 13 },
-    { 10, 6, 9, 5 }
-};
+const mat4 gc_dithering_matrix = mat4(
+    0, 12, 3, 15,
+    8, 4, 11, 7,
+    2, 14, 1, 13,
+    10, 6, 9, 5
+) / 16;
 
 void main() {
-    uvec2 grid_size = gl_WorkGroupSize.xy * gl_NumWorkGroups.xy;
-    uint thread_id = glGlobalInvocationID.y * grid_size.x + gl_GlobalInvocationID.x;
+    const uvec2 grid_size = gl_WorkGroupSize.xy * gl_NumWorkGroups.xy;
+    const uint thread_id = gl_GlobalInvocationID.y * grid_size.x + gl_GlobalInvocationID.x;
 
-    vec2 texCoord = u_texCoordOffset + u_texCoordScale * gl_GlobalInvocationID.xy / (grid_size - 1).xy;
-    vec4 texSample = texture(u_worldData, texCoord);
-    float value = texSample.y * texSample.z;
+    const vec2 tex_coord = u_tex_coord_offset + u_tex_coord_scale * (vec2(gl_GlobalInvocationID.xy) / vec2(grid_size - 1));
+    const vec4 tex_sample = texture(u_world_data, tex_coord);
 
+    const float v_position = tex_sample.r;
+    const float value = tex_sample.b - tex_sample.g;
+    const float threshold = gc_dithering_matrix[gl_LocalInvocationID.x][gl_LocalInvocationID.y];
 
+    const vec3 position = value > threshold ? vec3(tex_coord.x, v_position, tex_coord.y) : vec3(0.0f);
+
+    b_points.positions[thread_id] = position;
+
+    /*
+    if (gl_LocalInvocationIndex == 0) {
+        s_local_count = 0;
+    }
+
+    barrier();
+    memoryBarrierShared();
+
+    int write_index = -1;
+    if (value > threshold) {
+        write_index = int(atomicAdd(s_local_count, 1));
+    }
+
+    if (gl_LocalInvocationIndex == 0) {
+        s_write_index_offset = atomicAdd(b_points.args.count, s_local_count);
+    }
+
+    barrier();
+    memoryBarrierShared();
+
+    if (write_index > -1)
+        b_points.positions[s_write_index_offset + write_index] = vec3(h_position.x, v_position, h_position.y);
+    */
 }
