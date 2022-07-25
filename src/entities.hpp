@@ -45,7 +45,7 @@ private:
     glm::vec2 pos1 {.5f, .6f};
     glm::ivec2 num_work_groups {8, 8};
 
-    GLsizei point_count {0
+    GLsizei point_count {0};
     glm::vec4 point_color;
     float point_size;
 };
